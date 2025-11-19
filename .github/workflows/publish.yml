@@ -20,6 +20,8 @@ on:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    # Only run for repository_dispatch and workflow_dispatch events
+    if: github.event_name == 'repository_dispatch' || github.event_name == 'workflow_dispatch'
     permissions:
       contents: write  # For creating releases and committing JSON files
 

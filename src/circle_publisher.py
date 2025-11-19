@@ -153,10 +153,11 @@ class CirclePublisher:
             "Content-Type": "application/json",
         }
 
+        # Circle API v2 expects tiptap_body with nested structure
         payload = {
             "space_id": self.space_id,
             "name": title,
-            "body": body,
+            "tiptap_body": {"body": body, "format": "post"},
             "slug": slug,
             "is_comments_enabled": True,
             "is_liking_enabled": True,
@@ -209,9 +210,10 @@ class CirclePublisher:
             "Content-Type": "application/json",
         }
 
+        # Circle API v2 expects tiptap_body with nested structure
         payload = {
             "name": title,
-            "body": body,
+            "tiptap_body": {"body": body, "format": "post"},
             # Keep existing settings, just update content
         }
 

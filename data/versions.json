@@ -1,16 +1,1 @@
-{
-  "templates": {
-    "hello-world": {
-      "current_version": "1.0.0",
-      "versions": [
-        {
-          "version": "1.0.0",
-          "released_at": "2025-11-19T18:15:26.464247Z",
-          "github_release_tag": "hello-world-v1.0.0",
-          "download_url": "https://github.com/MindHiveTech/TemplateVault-Assets/releases/download/hello-world-v1.0.0/hello-world-v1.0.0.zip",
-          "circle_post_id": "27064440"
-        }
-      ]
-    }
-  }
-}
+{"templates":{}}

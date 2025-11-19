@@ -118,14 +118,11 @@ jobs:
               gh release delete "$tag" --repo "$GITHUB_REPOSITORY" --yes || true
             fi
 
+            # Create release with notes
             gh release create "$tag" \
               --repo "$GITHUB_REPOSITORY" \
               --title "$template_name v$version" \
-              --notes "Workflow file for $template_name v$version
-
-**Download:** Click the asset below to download the workflow.json.zip file.
-
-**Source:** [$REPO@${{ github.event.client_payload.sha || inputs.sha }}](https://github.com/$REPO/tree/${{ github.event.client_payload.sha || inputs.sha }}/templates/$template_path)"
+              --notes "Workflow file for $template_name v$version. Download the asset below to get the workflow.json.zip file."
 
             # Upload workflow.json.zip to release
             echo "📤 Uploading $zip_file to release..."
@@ -166,10 +163,7 @@ jobs:
           if git diff --staged --quiet; then
             echo "No changes to commit"
           else
-            git commit -m "Update versions and Circle index
-
-Templates processed:
-${{ steps.parse-changed.outputs.changed }}"
+            git commit -m "Update versions and Circle index from automated publish"
             git push
             echo "✅ Committed and pushed updated JSON files"
           fi

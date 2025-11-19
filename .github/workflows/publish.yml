@@ -1,0 +1,187 @@
+name: Publish Templates to Circle
+
+on:
+  repository_dispatch:
+    types: [publish_templates]
+  workflow_dispatch:
+    inputs:
+      repo:
+        description: 'TemplateVault repository (owner/name)'
+        required: true
+        default: 'MindHiveTech/TemplateVault'
+      sha:
+        description: 'Commit SHA to checkout'
+        required: true
+      changed:
+        description: 'JSON array of changed template paths'
+        required: true
+        default: '[]'
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write  # For creating releases and committing JSON files
+
+    steps:
+      - name: Checkout Assets repo
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Checkout TemplateVault repo
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.event.client_payload.repo || inputs.repo }}
+          ref: ${{ github.event.client_payload.sha || inputs.sha }}
+          token: ${{ secrets.TEMPLATEVAULT_PAT }}
+          path: templatevault
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Parse changed templates
+        id: parse-changed
+        run: |
+          if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
+            CHANGED='${{ toJson(github.event.client_payload.changed) }}'
+          else
+            CHANGED='${{ inputs.changed }}'
+          fi
+          echo "changed=$CHANGED" >> $GITHUB_OUTPUT
+          echo "Changed templates: $CHANGED"
+
+      - name: Process each template
+        run: |
+          set -e  # Exit on first error
+
+          CHANGED='${{ steps.parse-changed.outputs.changed }}'
+          REPO="${{ github.event.client_payload.repo || inputs.repo }}"
+
+          # Parse JSON array
+          TEMPLATES=$(echo "$CHANGED" | jq -r '.[]')
+
+          for template_path in $TEMPLATES; do
+            echo "=========================================="
+            echo "Processing template: $template_path"
+            echo "=========================================="
+
+            # Extract template name from path (remove category prefix if present)
+            template_name=$(basename "$template_path")
+            template_dir="templatevault/templates/$template_path"
+
+            if [ ! -d "$template_dir" ]; then
+              echo "❌ Error: Template directory not found: $template_dir"
+              exit 1
+            fi
+
+            # Extract version from CHANGELOG.md
+            changelog_file="$template_dir/CHANGELOG.md"
+            if [ -f "$changelog_file" ]; then
+              version=$(python scripts/extract_version.py "$changelog_file")
+            else
+              version="1.0.0"
+              echo "⚠️  Warning: No CHANGELOG.md found, using version $version"
+            fi
+
+            echo "Template: $template_name"
+            echo "Version: $version"
+
+            # Build tag and file names
+            tag="${template_name}-v${version}"
+            zip_file="${template_name}-v${version}.zip"
+
+            # Package workflow.json
+            echo "📦 Packaging workflow.json..."
+            cd "$template_dir"
+            if [ ! -f "workflow.json" ]; then
+              echo "❌ Error: workflow.json not found in $template_dir"
+              exit 1
+            fi
+            zip "$zip_file" workflow.json
+            cd - > /dev/null
+
+            # Create GitHub release in Assets repo (this repo)
+            echo "🚀 Creating GitHub release: $tag"
+
+            # Check if release already exists
+            if gh release view "$tag" --repo "$GITHUB_REPOSITORY" &> /dev/null; then
+              echo "ℹ️  Release $tag already exists, deleting and recreating..."
+              gh release delete "$tag" --repo "$GITHUB_REPOSITORY" --yes || true
+            fi
+
+            gh release create "$tag" \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "$template_name v$version" \
+              --notes "Workflow file for $template_name v$version
+
+**Download:** Click the asset below to download the workflow.json.zip file.
+
+**Source:** [$REPO@${{ github.event.client_payload.sha || inputs.sha }}](https://github.com/$REPO/tree/${{ github.event.client_payload.sha || inputs.sha }}/templates/$template_path)"
+
+            # Upload workflow.json.zip to release
+            echo "📤 Uploading $zip_file to release..."
+            gh release upload "$tag" "$template_dir/$zip_file" \
+              --repo "$GITHUB_REPOSITORY" \
+              --clobber
+
+            # Build download URL
+            download_url="https://github.com/$GITHUB_REPOSITORY/releases/download/$tag/$zip_file"
+            echo "✅ Download URL: $download_url"
+
+            # Publish to Circle.so
+            echo "📝 Publishing to Circle.so..."
+            python scripts/publish_template.py \
+              --template-dir "$template_dir" \
+              --template-name "$template_name" \
+              --version "$version" \
+              --download-url "$download_url"
+
+            echo "✅ Successfully processed $template_name v$version"
+            echo ""
+          done
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CIRCLE_API_TOKEN: ${{ secrets.CIRCLE_API_TOKEN }}
+          CIRCLE_SPACE_ID: ${{ secrets.CIRCLE_SPACE_ID }}
+          CIRCLE_BASE_URL: ${{ vars.CIRCLE_BASE_URL || 'https://app.circle.so/api/admin/v2' }}
+
+      - name: Commit updated JSON files
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Add data files if they changed
+          git add data/versions.json data/circle_index.json
+
+          # Check if there are changes
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Update versions and Circle index
+
+Templates processed:
+${{ steps.parse-changed.outputs.changed }}"
+            git push
+            echo "✅ Committed and pushed updated JSON files"
+          fi
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "## 📊 Publish Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Repository:** ${{ github.event.client_payload.repo || inputs.repo }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** \`${{ github.event.client_payload.sha || inputs.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Templates Published" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo '```json' >> $GITHUB_STEP_SUMMARY
+          echo '${{ steps.parse-changed.outputs.changed }}' | jq . >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY

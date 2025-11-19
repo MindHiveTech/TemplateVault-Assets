@@ -134,39 +134,12 @@ jobs:
             download_url="https://github.com/$GITHUB_REPOSITORY/releases/download/$tag/$zip_file"
             echo "✅ Download URL: $download_url"
 
-            # Publish to Circle.so
-            echo "📝 Publishing to Circle.so..."
-            python scripts/publish_template.py \
-              --template-dir "$template_dir" \
-              --template-name "$template_name" \
-              --version "$version" \
-              --download-url "$download_url"
-
+            # Note: Circle.so posting removed - releases only
             echo "✅ Successfully processed $template_name v$version"
             echo ""
           done
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CIRCLE_API_TOKEN: ${{ secrets.CIRCLE_API_TOKEN }}
-          CIRCLE_SPACE_ID: ${{ secrets.CIRCLE_SPACE_ID }}
-          CIRCLE_BASE_URL: ${{ vars.CIRCLE_BASE_URL || 'https://app.circle.so/api/admin/v2' }}
-
-      - name: Commit updated JSON files
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-          # Add data files if they changed
-          git add data/versions.json data/circle_index.json
-
-          # Check if there are changes
-          if git diff --staged --quiet; then
-            echo "No changes to commit"
-          else
-            git commit -m "Update versions and Circle index from automated publish"
-            git push
-            echo "✅ Committed and pushed updated JSON files"
-          fi
 
       - name: Summary
         if: always()

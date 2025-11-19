@@ -161,7 +161,7 @@ class CirclePublisher:
             "is_comments_enabled": True,
             "is_liking_enabled": True,
             "is_pinned": False,
-            "published": False,  # Create as draft by default
+            "status": "draft",  # Create as draft by default
         }
 
         logger.debug(f"Creating post: {title} (slug: {slug})")

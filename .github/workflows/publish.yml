@@ -1,4 +1,4 @@
-name: Publish Templates to Circle
+name: Publish Templates as GitHub Releases
 
 on:
   repository_dispatch:

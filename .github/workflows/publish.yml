@@ -52,7 +52,8 @@ jobs:
         id: parse-changed
         run: |
           if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
-            CHANGED='${{ toJson(github.event.client_payload.changed) }}'
+            # Compact JSON to single line to avoid GITHUB_OUTPUT multi-line issues
+            CHANGED=$(echo '${{ toJson(github.event.client_payload.changed) }}' | jq -c .)
           else
             CHANGED='${{ inputs.changed }}'
           fi
@@ -152,5 +153,5 @@ jobs:
           echo "### Templates Published" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo '```json' >> $GITHUB_STEP_SUMMARY
-          echo '${{ steps.parse-changed.outputs.changed }}' | jq . >> $GITHUB_STEP_SUMMARY
+          echo '${{ steps.parse-changed.outputs.changed }}' | jq . >> $GITHUB_STEP_SUMMARY || echo '[]' >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
